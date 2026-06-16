@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.env
+venv/
+*.egg
+
+# Azure
+local.settings.json
+.python_packages/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Secrets
+*.key
+*.pem
+*.pfx
+secrets.json
+
+# Logs
+*.log
+
+# ZIP files
+*.zip
