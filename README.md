@@ -46,10 +46,13 @@ Organizations face **millions of failed login attempts daily** across multiple i
 
 **Python Simulator** (7 Attack Types)
 ⬇️ HTTP Data Collector API
+
 **Azure Log Analytics** (8 KQL Detection Rules)
 ⬇️
+
 **Azure Logic App** (Every 30 min)
 ⬇️
+
 **Azure Function** → IP Reputation + Risk Score (0-100)
 ⬇️ Alerts sent to:
 - ✅ Microsoft Teams (Adaptive Card)
@@ -57,6 +60,7 @@ Organizations face **millions of failed login attempts daily** across multiple i
 - ✅ SMS (Azure Monitor)
 - ✅ Microsoft Sentinel (SIEM + MITRE)
 - ✅ Table Storage (Incident Log)
+
 ⬇️
 **Azure Workbook Dashboard** (15+ Tiles) + **Power BI** (Executive)
 
