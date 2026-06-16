@@ -63,7 +63,6 @@ Azure Logic App (Every 30 min)
 ▼
 Azure Workbook Dashboard (15+ Tiles) + Power BI (Executive)
 
-
 ### 6-Stage Pipeline
 
 | Stage | Component | Description |
@@ -203,18 +202,14 @@ Azure Workbook Dashboard (15+ Tiles) + Power BI (Executive)
 
 
 authguard-hack2future-2026/
-│
 ├── README.md
 ├── LICENSE
 ├── .gitignore
-│
 ├── simulator/
 │   └── simulate_pro.py
-│
 ├── azure-function/
 │   ├── function_app.py
 │   └── requirements.txt
-│
 ├── kql-queries/
 │   ├── 01_brute_force.kql
 │   ├── 02_password_spray.kql
@@ -225,15 +220,12 @@ authguard-hack2future-2026/
 │   ├── 07_hvt_monitoring.kql
 │   ├── 08_master_detection.kql
 │   └── 09_hunting_query.kql
-│
 ├── logic-app/
 │   ├── logic_app_code.json
 │   └── adaptive_card.json
-│
 ├── docs/
 │   ├── architecture.md
 │   └── setup_guide.md
-│
 └── Screenshots/
 
 ---
@@ -289,4 +281,7 @@ MIT License — see LICENSE file
 
 ---
 
-🛡️ **AuthGuard — Securing Identities Before Breaches Happen** | Team ShieldOps | Hack2Future 2026 | Microsoft Azure
+<p align="center">
+  <b>🛡️ AuthGuard — Securing Identities Before Breaches Happen</b><br>
+  <i>Team ShieldOps | Hack2Future 2026 | Microsoft Azure</i>
+</p>
