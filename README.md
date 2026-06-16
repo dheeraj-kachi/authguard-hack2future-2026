@@ -42,26 +42,23 @@ Organizations face **millions of failed login attempts daily** across multiple i
 
 ## 🏗️ Solution Architecture
 
-Python Simulator (7 Attack Types)
-│
-│ HTTP Data Collector API
-▼
-Azure Log Analytics Workspace
-│
-│ 8 KQL Detection Rules
-▼
-Azure Logic App (Every 30 min)
-│
-├──► Azure Function (IP Reputation + Risk Score 0-100)
-│
-├──► Microsoft Teams (Adaptive Card → SOC Channel)
-├──► Outlook Email (HTML formatted, IST timestamps)
-├──► SMS (Azure Monitor Action Group)
-├──► Microsoft Sentinel (SIEM Incidents + MITRE ATT&CK)
-├──► Azure Table Storage (Incident Audit Trail)
-│
-▼
-Azure Workbook Dashboard (15+ Tiles) + Power BI (Executive)
+### Architecture Flow
+
+**Python Simulator** (7 Attack Types)
+⬇️ HTTP Data Collector API
+**Azure Log Analytics** (8 KQL Detection Rules)
+⬇️
+**Azure Logic App** (Every 30 min)
+⬇️
+**Azure Function** → IP Reputation + Risk Score (0-100)
+⬇️ Alerts sent to:
+- ✅ Microsoft Teams (Adaptive Card)
+- ✅ Outlook Email (HTML, IST timestamps)
+- ✅ SMS (Azure Monitor)
+- ✅ Microsoft Sentinel (SIEM + MITRE)
+- ✅ Table Storage (Incident Log)
+⬇️
+**Azure Workbook Dashboard** (15+ Tiles) + **Power BI** (Executive)
 
 ### 6-Stage Pipeline
 
@@ -200,33 +197,14 @@ Azure Workbook Dashboard (15+ Tiles) + Power BI (Executive)
 
 ## 📁 Project Structure
 
+### Folders
 
-authguard-hack2future-2026/
-├── README.md
-├── LICENSE
-├── .gitignore
-├── simulator/
-│   └── simulate_pro.py
-├── azure-function/
-│   ├── function_app.py
-│   └── requirements.txt
-├── kql-queries/
-│   ├── 01_brute_force.kql
-│   ├── 02_password_spray.kql
-│   ├── 03_credential_stuffing.kql
-│   ├── 04_impossible_travel.kql
-│   ├── 05_off_hours.kql
-│   ├── 06_account_enumeration.kql
-│   ├── 07_hvt_monitoring.kql
-│   ├── 08_master_detection.kql
-│   └── 09_hunting_query.kql
-├── logic-app/
-│   ├── logic_app_code.json
-│   └── adaptive_card.json
-├── docs/
-│   ├── architecture.md
-│   └── setup_guide.md
-└── Screenshots/
+- **simulator/** → simulate_pro.py
+- **azure-function/** → function_app.py, requirements.txt
+- **kql-queries/** → 9 KQL detection query files
+- **logic-app/** → logic_app_code.json, adaptive_card.json
+- **docs/** → architecture.md, setup_guide.md
+- **Screenshots/** → All project screenshots
 
 ---
 
@@ -268,12 +246,6 @@ authguard-hack2future-2026/
 - **Microsoft** — Azure cloud platform and hackathon partnership
 - **CloudLabs (Spektra Systems)** — Sandbox environment support
 - **Hack2Future 2026** — Hackathon platform and challenge
-
----
-
-## 📜 License
-
-MIT License — see LICENSE file
 
 ---
 
