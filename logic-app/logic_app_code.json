@@ -1,0 +1,194 @@
+{
+    "definition": {
+        "metadata": {
+            "notes": {}
+        },
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "triggers": {
+            "Recurrence": {
+                "recurrence": {
+                    "interval": 5,
+                    "frequency": "Minute",
+                    "timeZone": "India Standard Time"
+                },
+                "type": "Recurrence",
+                "description": "Recurrence_Trigger"
+            }
+        },
+        "actions": {
+            "Run_query_and_list_results": {
+                "runAfter": {},
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['azuremonitorlogs']['connectionId']"
+                        }
+                    },
+                    "method": "post",
+                    "body": "// ================================================================\n// AUTHGUARD PRO MASTER DETECTION QUERY\n// Combines all 7 threat types into one unified output\n// This is what the Logic App runs every 5 minutes\n// ================================================================\nlet timeWindow = 24h;\nlet bfThreshold = 5;\nlet sprayThreshold = 3;\nlet stuffThreshold = 3;\n// --- Brute Force ---\nlet bf = FailedLogins_CL\n| where TimeGenerated > ago(timeWindow)\n| summarize FC=count(), IPs=make_set(SourceIPAddress_s,5)\n  by UserPrincipalName_s, SourceIPAddress_s, Country_s\n| where FC >= bfThreshold\n| project ThreatType=\"Brute Force\",\n    AffectedEntity=UserPrincipalName_s,\n    AttackerIP=SourceIPAddress_s,\n    FailureCount=FC,\n    Details=strcat(\"IP: \",SourceIPAddress_s,\" (\",Country_s,\") → \",tostring(FC),\" attempts\");\n// --- Password Spray ---\nlet ps = FailedLogins_CL\n| where TimeGenerated > ago(timeWindow)\n| summarize Users=dcount(UserPrincipalName_s),\n    UL=make_set(UserPrincipalName_s,10), FC=count()\n  by SourceIPAddress_s, Country_s\n| where Users >= sprayThreshold\n| project ThreatType=\"Password Spray\",\n    AffectedEntity=SourceIPAddress_s,\n    AttackerIP=SourceIPAddress_s,\n    FailureCount=FC,\n    Details=strcat(tostring(Users),\" users targeted: \",tostring(UL));\n// --- Credential Stuffing ---\nlet cs = FailedLogins_CL\n| where TimeGenerated > ago(timeWindow)\n| summarize DIPs=dcount(SourceIPAddress_s),\n    IPL=make_set(SourceIPAddress_s,10), FC=count()\n  by UserPrincipalName_s\n| where DIPs >= stuffThreshold and FC >= bfThreshold\n| project ThreatType=\"Credential Stuffing\",\n    AffectedEntity=UserPrincipalName_s,\n    AttackerIP=\"Multiple\",\n    FailureCount=FC,\n    Details=strcat(tostring(DIPs),\" distinct IPs: \",tostring(IPL));\n// --- Impossible Travel ---\nlet it = FailedLogins_CL\n| where TimeGenerated > ago(1h)\n| where AttackType_s == \"ImpossibleTravel\"\n| summarize FC=count(),\n    Cities=make_set(City_s,5), Countries=make_set(Country_s,5)\n  by UserPrincipalName_s\n| where FC >= 2\n| project ThreatType=\"Impossible Travel\",\n    AffectedEntity=UserPrincipalName_s,\n    AttackerIP=\"Multiple Locations\",\n    FailureCount=FC,\n    Details=strcat(\"Cities: \",tostring(Cities),\" Countries: \",tostring(Countries));\n// --- Off-Hours ---\nlet oh = FailedLogins_CL\n| where TimeGenerated > ago(1h)\n| where LoginHour_d < 8 or LoginHour_d >= 19\n| summarize FC=count(), Hours=make_set(LoginHour_d,5)\n  by UserPrincipalName_s\n| where FC >= 3\n| project ThreatType=\"Off-Hours Anomaly\",\n    AffectedEntity=UserPrincipalName_s,\n    AttackerIP=\"N/A\",\n    FailureCount=FC,\n    Details=strcat(\"Login hours: \",tostring(Hours));\n// --- Account Enumeration ---\nlet ae = FailedLogins_CL\n| where TimeGenerated > ago(timeWindow)\n| where FailureReason_s == \"Invalid username\"\n| summarize Users=dcount(UserPrincipalName_s), FC=count()\n  by SourceIPAddress_s\n| where Users >= 3\n| project ThreatType=\"Account Enumeration\",\n    AffectedEntity=SourceIPAddress_s,\n    AttackerIP=SourceIPAddress_s,\n    FailureCount=FC,\n    Details=strcat(tostring(Users),\" non-existent usernames tried\");\n// --- HVT ---\nlet hvt = FailedLogins_CL\n| where TimeGenerated > ago(30m)\n| where IsHighValueTarget_s == \"True\"\n| summarize FC=count(), DIPs=dcount(SourceIPAddress_s),\n    Types=make_set(AttackType_s,5)\n  by UserPrincipalName_s\n| where FC >= 3\n| project ThreatType=\"High-Value Target\",\n    AffectedEntity=UserPrincipalName_s,\n    AttackerIP=\"Multiple\",\n    FailureCount=FC,\n    Details=strcat(\"Distinct IPs: \",tostring(DIPs),\" Types: \",tostring(Types));\n// === UNION ALL ===\nbf | union ps | union cs | union it | union oh | union ae | union hvt\n| extend Severity = case(\n    FailureCount >= 15 or ThreatType == \"Impossible Travel\", \"Critical\",\n    FailureCount >= 8, \"High\",\n    \"Medium\")\n| order by Severity asc, FailureCount desc",
+                    "path": "/queryData",
+                    "queries": {
+                        "subscriptions": "dd001368-f7fc-47bb-b671-efaf1ddf7e8d",
+                        "resourcegroups": "rg-authguard-shieldops",
+                        "resourcetype": "Log Analytics Workspace",
+                        "resourcename": "law-authguard",
+                        "timerange": "Last 1 hour"
+                    }
+                }
+            },
+            "Condition": {
+                "actions": {
+                    "Call_Enrichment_Function_(HTTP_POST)_": {
+                        "type": "Http",
+                        "inputs": {
+                            "uri": "https://func-authguard-enrich-g7cnamcsf3f4fzh3.eastus-01.azurewebsites.net/api/enrich?code=YOUR_FUNCTION_KEY_HERE",
+                            "method": "POST",
+                            "headers": {
+                                "Content-Type": "application/json"
+                            },
+                            "body": "@body('Run_query_and_list_results')?['value']"
+                        },
+                        "runtimeConfiguration": {
+                            "contentTransfer": {
+                                "transferMode": "Chunked"
+                            }
+                        }
+                    },
+                    "Post_card_in_a_chat_or_channel": {
+                        "runAfter": {
+                            "Call_Enrichment_Function_(HTTP_POST)_": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['teams']['connectionId']"
+                                }
+                            },
+                            "method": "post",
+                            "body": {
+                                "recipient": {
+                                    "groupId": "f4c6f8d2-b31a-4060-b606-5da734f52ad8",
+                                    "channelId": "19:0JHKGP7vFqcPAGSKYR3c5hqNljiJAqv78nI9lVyfgVE1@thread.tacv2"
+                                },
+                                "messageBody": "{\n    \"$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",\n    \"type\": \"AdaptiveCard\",\n    \"version\": \"1.4\",\n    \"body\": [\n        {\n            \"type\": \"Container\",\n            \"style\": \"attention\",\n            \"bleed\": true,\n            \"items\": [\n                {\n                    \"type\": \"ColumnSet\",\n                    \"columns\": [\n                        {\n                            \"type\": \"Column\",\n                            \"width\": \"auto\",\n                            \"items\": [\n                                {\n                                    \"type\": \"TextBlock\",\n                                    \"text\": \"AuthGuard Pro\",\n                                    \"size\": \"ExtraLarge\",\n                                    \"weight\": \"Bolder\",\n                                    \"color\": \"Attention\"\n                                }\n                            ]\n                        }\n                    ]\n                }\n            ]\n        },\n        {\n            \"type\": \"TextBlock\",\n            \"text\": \"Security Alert - Suspicious Login Patterns Detected\",\n            \"weight\": \"Bolder\",\n            \"size\": \"Medium\",\n            \"wrap\": true\n        },\n        {\n            \"type\": \"FactSet\",\n            \"facts\": [\n                {\n                    \"title\": \"Detection Time:\",\n                    \"value\": \"@{convertTimeZone(utcNow(), 'UTC', 'India Standard Time', 'dd/MM/yyyy hh:mm:ss tt')} IST\"\n                },\n                {\n                    \"title\": \"Threats Detected:\",\n                    \"value\": \"@{length(body('Run_query_and_list_results')?['value'])} pattern(s)\"\n                },\n                {\n                    \"title\": \"Scan Window:\",\n                    \"value\": \"Last 15 minutes\"\n                },\n                {\n                    \"title\": \"Engine:\",\n                    \"value\": \"AuthGuard Pro v2.0 - Team ShieldOps\"\n                }\n            ]\n        },\n        {\n            \"type\": \"TextBlock\",\n            \"text\": \"Recommended Actions:\",\n            \"weight\": \"Bolder\",\n            \"spacing\": \"Medium\"\n        },\n        {\n            \"type\": \"TextBlock\",\n            \"text\": \"1. Review affected accounts in Entra ID\\n2. Cross-reference source IPs with threat intel\\n3. Check for successful logins from flagged IPs\\n4. Enable Conditional Access block for high-risk IPs\\n5. Escalate Critical alerts to Incident Response\",\n            \"wrap\": true\n        }\n    ],\n    \"actions\": [\n        {\n            \"type\": \"Action.OpenUrl\",\n            \"title\": \"Open Azure Portal\",\n            \"url\": \"https://portal.azure.com\"\n        }\n    ]\n}"
+                            },
+                            "path": "/v1.0/teams/conversation/adaptivecard/poster/Flow bot/location/@{encodeURIComponent('Channel')}"
+                        }
+                    },
+                    "Send_an_email_(V2)": {
+                        "runAfter": {
+                            "Post_card_in_a_chat_or_channel": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['office365']['connectionId']"
+                                }
+                            },
+                            "method": "post",
+                            "body": {
+                                "To": "odl_user_2257107@azurehol3634.onmicrosoft.com",
+                                "Subject": "🚨 AuthGuard Pro Alert — @{length(body('Run_query_and_list_results')?['value'])} Threat(s) Detected",
+                                "Body": "<p style=\"font-family:Segoe UI,Arial,sans-serif;\"><span style=\"font-size:22px;color:#d13438;\"><strong>🛡️ AuthGuard Pro — Security Alert</strong></span></p><hr style=\"border:1px solid #d13438;\"/><table style=\"font-family:Segoe UI,Arial,sans-serif;font-size:14px;border-collapse:collapse;width:100%;max-width:600px;\"><tr style=\"background-color:#fde7e9;\"><td style=\"padding:10px;border:1px solid #ddd;\"><strong>Detection Time</strong></td><td style=\"padding:10px;border:1px solid #ddd;\">@{convertTimeZone(utcNow(), 'UTC', 'India Standard Time', 'dd/MM/yyyy hh:mm:ss tt')} IST</td></tr><tr><td style=\"padding:10px;border:1px solid #ddd;\"><strong>Threats Found</strong></td><td style=\"padding:10px;border:1px solid #ddd;\">@{length(body('Run_query_and_list_results')?['value'])} pattern(s)</td></tr><tr style=\"background-color:#fde7e9;\"><td style=\"padding:10px;border:1px solid #ddd;\"><strong>Enrichment</strong></td><td style=\"padding:10px;border:1px solid #ddd;\">IP Reputation + Composite Risk Scoring applied</td></tr><tr><td style=\"padding:10px;border:1px solid #ddd;\"><strong>Engine</strong></td><td style=\"padding:10px;border:1px solid #ddd;\">AuthGuard Pro v2.0 | Team  ShieldOps</td></tr></table><br/><p style=\"font-family:Segoe UI,Arial,sans-serif;font-size:16px;color:#d13438;\"><strong>⚡ Immediate Actions Required:</strong></p><ol style=\"font-family:Segoe UI,Arial,sans-serif;font-size:14px;\"><li>Review affected accounts in Entra ID</li><li>Check source IPs against threat intelligence</li><li>Enable Conditional Access blocks for flagged IPs</li><li>Escalate Critical-severity threats to IR team</li></ol><hr style=\"border:1px solid #d13438;\"/><p style=\"font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#666;\"><em>This alert was generated by AuthGuard Pro — an automated identity threat detection engine built by Team ShieldOps for Hack2Future 2026.</em></p>",
+                                "Importance": "High",
+                                "IsHtml": true
+                            },
+                            "path": "/v2/Mail"
+                        }
+                    },
+                    "Insert_Entity_(V2)": {
+                        "runAfter": {
+                            "Send_an_email_(V2)": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['azuretables']['connectionId']"
+                                }
+                            },
+                            "method": "post",
+                            "body": {
+                                "PartitionKey": "AuthGuard",
+                                "RowKey": "@{utcNow('yyyyMMddHHmmss')}",
+                                "DetectionTime": "@{convertTimeZone(utcNow(), 'UTC', 'India Standard Time', 'dd/MM/yyyy hh:mm:ss tt')} IST",
+                                "ThreatsDetected": "@{length(body('Run_query_and_list_results')?['value'])}",
+                                "Engine": "AuthGuard Pro v2.0",
+                                "Status": "Open",
+                                "Team": "ShieldOps"
+                            },
+                            "path": "/v2/storageAccounts/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/tables/@{encodeURIComponent('IncidentLog')}/entities"
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Run_query_and_list_results": [
+                        "Succeeded"
+                    ]
+                },
+                "else": {
+                    "actions": {}
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "greater": [
+                                "@length(body('Run_query_and_list_results')?['value'])",
+                                0
+                            ]
+                        }
+                    ]
+                },
+                "type": "If"
+            }
+        },
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "type": "Object",
+                "defaultValue": {}
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "type": "Object",
+            "value": {
+                "azuremonitorlogs": {
+                    "id": "/subscriptions/dd001368-f7fc-47bb-b671-efaf1ddf7e8d/providers/Microsoft.Web/locations/eastus/managedApis/azuremonitorlogs",
+                    "connectionId": "/subscriptions/dd001368-f7fc-47bb-b671-efaf1ddf7e8d/resourceGroups/rg-authguard-shieldops/providers/Microsoft.Web/connections/azuremonitorlogs",
+                    "connectionName": "azuremonitorlogs",
+                    "connectionProperties": {}
+                },
+                "teams": {
+                    "id": "/subscriptions/dd001368-f7fc-47bb-b671-efaf1ddf7e8d/providers/Microsoft.Web/locations/eastus/managedApis/teams",
+                    "connectionId": "/subscriptions/dd001368-f7fc-47bb-b671-efaf1ddf7e8d/resourceGroups/rg-authguard-shieldops/providers/Microsoft.Web/connections/teams",
+                    "connectionName": "teams",
+                    "connectionProperties": {}
+                },
+                "office365": {
+                    "id": "/subscriptions/dd001368-f7fc-47bb-b671-efaf1ddf7e8d/providers/Microsoft.Web/locations/eastus/managedApis/office365",
+                    "connectionId": "/subscriptions/dd001368-f7fc-47bb-b671-efaf1ddf7e8d/resourceGroups/rg-authguard-shieldops/providers/Microsoft.Web/connections/office365",
+                    "connectionName": "office365",
+                    "connectionProperties": {}
+                },
+                "azuretables": {
+                    "id": "/subscriptions/dd001368-f7fc-47bb-b671-efaf1ddf7e8d/providers/Microsoft.Web/locations/eastus/managedApis/azuretables",
+                    "connectionId": "/subscriptions/dd001368-f7fc-47bb-b671-efaf1ddf7e8d/resourceGroups/rg-authguard-shieldops/providers/Microsoft.Web/connections/azuretables",
+                    "connectionName": "azuretables",
+                    "connectionProperties": {}
+                }
+            }
+        }
+    }
+}

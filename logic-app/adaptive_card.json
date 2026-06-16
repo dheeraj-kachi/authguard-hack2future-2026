@@ -1,0 +1,78 @@
+{
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "type": "AdaptiveCard",
+    "version": "1.4",
+    "body": [
+        {
+            "type": "Container",
+            "style": "attention",
+            "bleed": true,
+            "items": [
+                {
+                    "type": "ColumnSet",
+                    "columns": [
+                        {
+                            "type": "Column",
+                            "width": "auto",
+                            "items": [
+                                {
+                                    "type": "TextBlock",
+                                    "text": "AuthGuard Pro",
+                                    "size": "ExtraLarge",
+                                    "weight": "Bolder",
+                                    "color": "Attention"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "TextBlock",
+            "text": "Security Alert - Suspicious Login Patterns Detected",
+            "weight": "Bolder",
+            "size": "Medium",
+            "wrap": true
+        },
+        {
+            "type": "FactSet",
+            "facts": [
+                {
+                    "title": "Detection Time:",
+                    "value": "@{convertTimeZone(utcNow(), 'UTC', 'India Standard Time', 'dd/MM/yyyy hh:mm:ss tt')} IST"
+                },
+                {
+                    "title": "Threats Detected:",
+                    "value": "@{length(body('Run_query_and_list_results')?['value'])} pattern(s)"
+                },
+                {
+                    "title": "Scan Window:",
+                    "value": "Last 15 minutes"
+                },
+                {
+                    "title": "Engine:",
+                    "value": "AuthGuard Pro v2.0 - Team ShieldOps"
+                }
+            ]
+        },
+        {
+            "type": "TextBlock",
+            "text": "Recommended Actions:",
+            "weight": "Bolder",
+            "spacing": "Medium"
+        },
+        {
+            "type": "TextBlock",
+            "text": "1. Review affected accounts in Entra ID\n2. Cross-reference source IPs with threat intel\n3. Check for successful logins from flagged IPs\n4. Enable Conditional Access block for high-risk IPs\n5. Escalate Critical alerts to Incident Response",
+            "wrap": true
+        }
+    ],
+    "actions": [
+        {
+            "type": "Action.OpenUrl",
+            "title": "Open Azure Portal",
+            "url": "https://portal.azure.com"
+        }
+    ]
+}

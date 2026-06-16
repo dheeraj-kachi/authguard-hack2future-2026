@@ -1,0 +1,18 @@
+// ================================================================
+// AuthGuard Pro v2.0 — Sentinel Hunting Query
+// Team LTM ShieldOps | Hack2Future 2026
+// Proactively hunts for accounts with suspicious multi-source
+// failed login patterns indicating potential compromise
+// ================================================================
+
+FailedLogins_CL
+| where TimeGenerated > ago(24h)
+| summarize
+    TotalFailures = count(),
+    DistinctIPs = dcount(SourceIPAddress_s),
+    Countries = make_set(Country_s, 10),
+    AttackTypes = make_set(AttackType_s, 5),
+    FailureReasons = make_set(FailureReason_s, 5)
+  by UserPrincipalName_s, Department_s
+| where TotalFailures > 5 and DistinctIPs > 2
+| order by TotalFailures desc

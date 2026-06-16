@@ -1,0 +1,21 @@
+// ================================================================
+// AuthGuard Pro v2.0 — Off-Hours Anomaly Detection
+// Team LTM ShieldOps | Hack2Future 2026
+// Rule: Detects failed logins during non-business hours (7PM-8AM)
+// ================================================================
+
+FailedLogins_CL
+| where TimeGenerated > ago(1h)
+| where LoginHour_d < 8 or LoginHour_d >= 19
+| summarize
+    FC = count(),
+    Hours = make_set(LoginHour_d, 5)
+  by UserPrincipalName_s
+| where FC >= 3
+| project
+    ThreatType = "Off-Hours Anomaly",
+    AffectedEntity = UserPrincipalName_s,
+    AttackerIP = "N/A",
+    FailureCount = FC,
+    Details = strcat("Login hours: ", tostring(Hours))
+| order by FailureCount desc

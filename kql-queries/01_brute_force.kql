@@ -1,0 +1,24 @@
+// ================================================================
+// AuthGuard Pro v2.0 — Brute Force Detection
+// Team LTM ShieldOps | Hack2Future 2026
+// Rule: Detects multiple failed logins from single IP to single user
+// MITRE ATT&CK: T1110 — Brute Force
+// ================================================================
+
+let timeWindow = 24h;
+let bfThreshold = 5;
+
+FailedLogins_CL
+| where TimeGenerated > ago(timeWindow)
+| summarize
+    FC = count(),
+    IPs = make_set(SourceIPAddress_s, 5)
+  by UserPrincipalName_s, SourceIPAddress_s, Country_s
+| where FC >= bfThreshold
+| project
+    ThreatType = "Brute Force",
+    AffectedEntity = UserPrincipalName_s,
+    AttackerIP = SourceIPAddress_s,
+    FailureCount = FC,
+    Details = strcat("IP: ", SourceIPAddress_s, " (", Country_s, ") → ", tostring(FC), " attempts")
+| order by FailureCount desc

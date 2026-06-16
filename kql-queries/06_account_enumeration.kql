@@ -1,0 +1,23 @@
+// ================================================================
+// AuthGuard Pro v2.0 — Account Enumeration Detection
+// Team LTM ShieldOps | Hack2Future 2026
+// Rule: Detects IPs trying many non-existent usernames
+// ================================================================
+
+let timeWindow = 24h;
+
+FailedLogins_CL
+| where TimeGenerated > ago(timeWindow)
+| where FailureReason_s == "Invalid username"
+| summarize
+    Users = dcount(UserPrincipalName_s),
+    FC = count()
+  by SourceIPAddress_s
+| where Users >= 3
+| project
+    ThreatType = "Account Enumeration",
+    AffectedEntity = SourceIPAddress_s,
+    AttackerIP = SourceIPAddress_s,
+    FailureCount = FC,
+    Details = strcat(tostring(Users), " non-existent usernames tried")
+| order by FailureCount desc

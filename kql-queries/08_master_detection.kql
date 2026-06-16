@@ -1,0 +1,111 @@
+// ================================================================
+// AuthGuard Pro v2.0 — MASTER DETECTION QUERY
+// Team LTM ShieldOps | Hack2Future 2026
+// Combines all 7 threat types into one unified output
+// This is what the Logic App runs every 5-30 minutes
+// ================================================================
+
+let timeWindow = 24h;
+let bfThreshold = 5;
+let sprayThreshold = 3;
+let stuffThreshold = 3;
+
+// --- Brute Force ---
+let bf = FailedLogins_CL
+| where TimeGenerated > ago(timeWindow)
+| summarize FC=count(), IPs=make_set(SourceIPAddress_s,5)
+  by UserPrincipalName_s, SourceIPAddress_s, Country_s
+| where FC >= bfThreshold
+| project ThreatType="Brute Force",
+    AffectedEntity=UserPrincipalName_s,
+    AttackerIP=SourceIPAddress_s,
+    FailureCount=FC,
+    Details=strcat("IP: ",SourceIPAddress_s," (",Country_s,") → ",tostring(FC)," attempts");
+
+// --- Password Spray ---
+let ps = FailedLogins_CL
+| where TimeGenerated > ago(timeWindow)
+| summarize Users=dcount(UserPrincipalName_s),
+    UL=make_set(UserPrincipalName_s,10), FC=count()
+  by SourceIPAddress_s, Country_s
+| where Users >= sprayThreshold
+| project ThreatType="Password Spray",
+    AffectedEntity=SourceIPAddress_s,
+    AttackerIP=SourceIPAddress_s,
+    FailureCount=FC,
+    Details=strcat(tostring(Users)," users targeted: ",tostring(UL));
+
+// --- Credential Stuffing ---
+let cs = FailedLogins_CL
+| where TimeGenerated > ago(timeWindow)
+| summarize DIPs=dcount(SourceIPAddress_s),
+    IPL=make_set(SourceIPAddress_s,10), FC=count()
+  by UserPrincipalName_s
+| where DIPs >= stuffThreshold and FC >= bfThreshold
+| project ThreatType="Credential Stuffing",
+    AffectedEntity=UserPrincipalName_s,
+    AttackerIP="Multiple",
+    FailureCount=FC,
+    Details=strcat(tostring(DIPs)," distinct IPs: ",tostring(IPL));
+
+// --- Impossible Travel ---
+let it = FailedLogins_CL
+| where TimeGenerated > ago(1h)
+| where AttackType_s == "ImpossibleTravel"
+| summarize FC=count(),
+    Cities=make_set(City_s,5), Countries=make_set(Country_s,5)
+  by UserPrincipalName_s
+| where FC >= 2
+| project ThreatType="Impossible Travel",
+    AffectedEntity=UserPrincipalName_s,
+    AttackerIP="Multiple Locations",
+    FailureCount=FC,
+    Details=strcat("Cities: ",tostring(Cities)," Countries: ",tostring(Countries));
+
+// --- Off-Hours ---
+let oh = FailedLogins_CL
+| where TimeGenerated > ago(1h)
+| where LoginHour_d < 8 or LoginHour_d >= 19
+| summarize FC=count(), Hours=make_set(LoginHour_d,5)
+  by UserPrincipalName_s
+| where FC >= 3
+| project ThreatType="Off-Hours Anomaly",
+    AffectedEntity=UserPrincipalName_s,
+    AttackerIP="N/A",
+    FailureCount=FC,
+    Details=strcat("Login hours: ",tostring(Hours));
+
+// --- Account Enumeration ---
+let ae = FailedLogins_CL
+| where TimeGenerated > ago(timeWindow)
+| where FailureReason_s == "Invalid username"
+| summarize Users=dcount(UserPrincipalName_s), FC=count()
+  by SourceIPAddress_s
+| where Users >= 3
+| project ThreatType="Account Enumeration",
+    AffectedEntity=SourceIPAddress_s,
+    AttackerIP=SourceIPAddress_s,
+    FailureCount=FC,
+    Details=strcat(tostring(Users)," non-existent usernames tried");
+
+// --- HVT ---
+let hvt = FailedLogins_CL
+| where TimeGenerated > ago(30m)
+| where IsHighValueTarget_s == "True"
+| summarize FC=count(), DIPs=dcount(SourceIPAddress_s),
+    Types=make_set(AttackType_s,5)
+  by UserPrincipalName_s
+| where FC >= 3
+| project ThreatType="High-Value Target",
+    AffectedEntity=UserPrincipalName_s,
+    AttackerIP="Multiple",
+    FailureCount=FC,
+    Details=strcat("Distinct IPs: ",tostring(DIPs)," Types: ",tostring(Types));
+
+// === UNION ALL ===
+bf | union ps | union cs | union it | union oh | union ae | union hvt
+| extend Severity = case(
+    FailureCount >= 15 or ThreatType == "Impossible Travel", "Critical",
+    FailureCount >= 8, "High",
+    "Medium")
+| order by Severity asc, FailureCount desc

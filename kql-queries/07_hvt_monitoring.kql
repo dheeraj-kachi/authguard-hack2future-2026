@@ -1,0 +1,22 @@
+// ================================================================
+// AuthGuard Pro v2.0 — High-Value Target (HVT) Monitoring
+// Team LTM ShieldOps | Hack2Future 2026
+// Rule: Monitors admin/exec/service accounts for any failed logins
+// ================================================================
+
+FailedLogins_CL
+| where TimeGenerated > ago(30m)
+| where IsHighValueTarget_s == "True"
+| summarize
+    FC = count(),
+    DIPs = dcount(SourceIPAddress_s),
+    Types = make_set(AttackType_s, 5)
+  by UserPrincipalName_s
+| where FC >= 3
+| project
+    ThreatType = "High-Value Target",
+    AffectedEntity = UserPrincipalName_s,
+    AttackerIP = "Multiple",
+    FailureCount = FC,
+    Details = strcat("Distinct IPs: ", tostring(DIPs), " Types: ", tostring(Types))
+| order by FailureCount desc
